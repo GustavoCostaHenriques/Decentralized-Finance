@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8" />
-    <title>DeFi Dashboard</title>
+    <title>Decentralized Finance Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/web3@1.9.0/dist/web3.min.js"></script>
     <style>
         body {
@@ -13,7 +13,7 @@
             color: #333;
             display: flex;
             flex-direction: column;
-            align-items: center; /* Centralizar o container horizontalmente */
+            align-items: center;
         }
 
         h1 {
@@ -23,12 +23,21 @@
         }
 
         .dashboard-container {
-            max-width: 800px; /* Aumentei um pouco a largura máxima para ter mais espaço para as seções lado a lado */
+            max-width: 850px; /* Aumentei um pouco para acomodar 2 colunas confortavelmente */
             width: 100%;
             display: flex;
-            flex-wrap: wrap; /* Permitir que as seções quebrem para a próxima linha */
-            justify-content: flex-start; /* Alinhar as seções à esquerda e permitir que se organizem */
-            gap: 15px; /* Espaçamento entre as seções */
+            flex-wrap: wrap; /* Permite que as 'linhas' de seções quebrem */
+            justify-content: center; /* Centraliza as linhas de seções */
+            gap: 20px; /* Espaçamento maior entre as linhas de seções */
+        }
+
+        /* Contêineres para agrupar as seções em pares */
+        .section-row {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center; /* Centraliza as seções dentro da linha */
+            gap: 20px; /* Espaçamento entre as seções dentro da mesma linha */
+            width: 100%; /* Ocupa a largura total do dashboard-container */
         }
 
         .section {
@@ -37,10 +46,18 @@
             border-radius: 8px;
             box-shadow: 0 0 8px rgba(0, 0, 0, 0.08);
             border: 1px solid #eee;
-            /* Não defina uma largura fixa aqui para permitir que o flexbox as organize */
-            min-width: 250px; /* Largura mínima para cada seção */
-            flex-grow: 1; /* Permite que as seções cresçam para ocupar o espaço disponível */
+            flex: 1; /* Permite que as seções dentro de uma linha se expandam igualmente */
+            min-width: 350px; /* Largura mínima para cada seção (ajustada para ser mais confortável em 2 colunas) */
+            max-width: calc(50% - 10px); /* Para duas colunas com gap */
+            box-sizing: border-box; /* Inclui padding e borda na largura */
         }
+
+        /* Estilo específico para a seção de Set Rate para ocupar a largura total no topo */
+        .section.full-width {
+            max-width: 100%;
+            min-width: unset; /* Remove o min-width para que possa se ajustar */
+        }
+
 
         .section-title {
             font-size: 1em;
@@ -53,13 +70,18 @@
         label {
             font-weight: bold;
             font-size: 0.9em;
+            display: block;
+            margin-bottom: 5px;
         }
 
+        input[type="text"],
         input[type="number"] {
             padding: 6px;
             border: 1px solid #ccc;
             border-radius: 4px;
-            width: 150px;
+            width: calc(100% - 14px);
+            margin-bottom: 10px;
+            box-sizing: border-box;
         }
 
         button {
@@ -71,6 +93,11 @@
             cursor: pointer;
             font-size: 0.9em;
             transition: background-color 0.3s ease;
+            margin-top: 5px;
+        }
+
+        button:hover {
+            background-color: #0056b3;
         }
 
         p {
@@ -78,15 +105,16 @@
             color: #777;
             font-size: 0.85em;
             width: 100%;
+            margin-top: 10px;
         }
     </style>
 </head>
 
 <body>
-    <h1>DeFi Dashboard</h1>
+    <h1>Decentralized Finance Dashboard</h1>
 
     <div class="dashboard-container">
-        <div class="section">
+        <div class="section full-width">
             <h2 class="section-title">Set DEX Exchange Rate</h2>
             <label for="rateInput">Set DEX Swap Rate (wei per DEX):</label>
             <input type="number" id="rateInput" />
@@ -94,27 +122,106 @@
             <p id="rateStatus"></p>
         </div>
 
-        <div class="section">
-            <h2 class="section-title">Buy DEX Tokens</h2>
-            <label for="buyEthAmount">Buy DEX - Send ETH amount (in wei):</label>
-            <input type="number" id="buyEthAmount" />
-            <button onclick="buyDex()">Buy DEX</button>
-            <p id="buyStatus"></p>
+        <div class="section-row">
+            <div class="section">
+                <h2 class="section-title">Buy DEX Tokens</h2>
+                <label for="buyEthAmount">Buy DEX - Send ETH amount (in wei):</label>
+                <input type="number" id="buyEthAmount" />
+                <button onclick="buyDex()">Buy DEX</button>
+                <p id="buyStatus"></p>
+            </div>
+
+            <div class="section">
+                <h2 class="section-title">Sell DEX Tokens</h2>
+                <label for="sellDexAmount">Sell DEX - Amount to sell:</label>
+                <input type="number" id="sellDexAmount" />
+                <button onclick="sellDex()">Sell DEX</button>
+                <p id="sellStatus"></p>
+            </div>
         </div>
 
-        <div class="section">
-            <h2 class="section-title">DEX Balance</h2>
-            <button onclick="getDex()">Get My DEX Balance</button>
-            <p id="dexBalance"></p>
+        <div class="section-row">
+            <div class="section">
+                <h2 class="section-title">DEX Balance</h2>
+                <button onclick="getDex()">Get My DEX Balance</button>
+                <p id="dexBalance"></p>
+            </div>
+
+            <div class="section">
+                <h2 class="section-title">Contract ETH Balance</h2>
+                <button onclick="getEthTotalBalance()">Get Contract ETH Balance</button>
+                <p id="contractEthBalance"></p>
+            </div>
         </div>
 
-        <div class="section">
-            <h2 class="section-title">Sell DEX Tokens</h2>
-            <label for="sellDexAmount">Sell DEX - Amount to sell:</label>
-            <input type="number" id="sellDexAmount" />
-            <button onclick="sellDex()">Sell DEX</button>
-            <p id="sellStatus"></p>
+        <div class="section-row">
+            <div class="section">
+                <h2 class="section-title">Request Loan</h2>
+                <label for="loanDexAmountToStake">DEX Amount to Stake:</label>
+                <input type="number" id="loanDexAmountToStake" placeholder="e.g., 100" />
+
+                <label for="loanDuration">Loan Duration (seconds):</label>
+                <input type="number" id="loanDuration" placeholder="e.g., 2592000 (30 days)" />
+                <button onclick="loan()">Request Loan</button>
+                <p id="loanStatus"></p>
+                <p>Note: Max loan duration is 30 days (2592000 seconds).</p>
+            </div>
+
+            <div class="section">
+                <h2 class="section-title">Return Loan</h2>
+                <label for="returnLoanId">Loan ID:</label>
+                <input type="number" id="returnLoanId" placeholder="e.g., 1" />
+                <label for="returnLoanEthAmount">ETH Amount to Return (wei):</label>
+                <input type="number" id="returnLoanEthAmount" placeholder="e.g., 100000000000000000" />
+                <button onclick="returnLoan()">Return Loan</button>
+                <p id="returnLoanStatus"></p>
+                <p>Note: Ensure you send the exact amount including fees.</p>
+            </div>
         </div>
+
+        <div class="section-row">
+            <div class="section">
+                <h2 class="section-title">Make NFT Loan Request</h2>
+                <label for="nftContractAddressInput">NFT Contract Address:</label>
+                <input type="text" id="nftContractAddressInput" placeholder="e.g., 0x..." value="0xd8b934580fcE35a11B58C6D73aDeE468a2833fa8" />
+
+                <label for="nftTokenIdInput">NFT Token ID:</label>
+                <input type="number" id="nftTokenIdInput" placeholder="e.g., 123" />
+
+                <label for="nftLoanAmountInput">Loan Amount (in wei):</label>
+                <input type="number" id="nftLoanAmountInput" placeholder="e.g., 100000000000000000" />
+
+                <label for="nftLoanDeadlineInput">Loan Deadline (seconds):</label>
+                <input type="number" id="nftLoanDeadlineInput" placeholder="e.g., 2592000 (30 days)" />
+
+                <button onclick="makeLoanRequestByNft()">Make Request</button>
+                <p id="makeNftLoanRequestStatus"></p>
+                <p>Note: Ensure you own the NFT and the contract has enough ETH.</p>
+            </div>
+
+            <div class="section">
+                <h2 class="section-title">Cancel NFT Loan Request</h2>
+                <label for="cancelNftContractAddressInput">NFT Contract Address:</label>
+                <input type="text" id="cancelNftContractAddressInput" placeholder="e.g., 0x..." value="0xd8b934580fcE35a11B58C6D73aDeE468a2833fa8" />
+
+                <label for="cancelNftTokenIdInput">NFT Token ID:</label>
+                <input type="number" id="cancelNftTokenIdInput" placeholder="e.g., 123" />
+
+                <button onclick="cancelLoanRequestByNft()">Cancel Request</button>
+                <p id="cancelNftLoanRequestStatus"></p>
+                <p>Note: Only the NFT owner can cancel a request.</p>
+            </div>
+        </div>
+
+        <div class="section full-width">
+            <h2 class="section-title">Mint Simple NFT</h2>
+            <label for="mintTokenURI">Token URI (e.g., IPFS link):</label>
+            <input type="text" id="mintTokenURI" placeholder="ipfs://..." />
+
+            <button onclick="mintNft()">Mint NFT (Cost: 1000 wei)</button>
+            <p id="mintNftStatus"></p>
+        </div>
+
     </div>
 
     <script type="module" src="main.js"></script>

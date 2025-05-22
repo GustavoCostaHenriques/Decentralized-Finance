@@ -148,6 +148,68 @@ export const defi_abi =[
 		"inputs": [
 			{
 				"indexed": true,
+				"internalType": "uint256",
+				"name": "loanId",
+				"type": "uint256"
+			},
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "borrower",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "amountPaid",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "dexAmountReturned",
+				"type": "uint256"
+			}
+		],
+		"name": "LoanRepaid",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "uint256",
+				"name": "loanId",
+				"type": "uint256"
+			},
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "nftContractAddress",
+				"type": "address"
+			},
+			{
+				"indexed": true,
+				"internalType": "uint256",
+				"name": "nftTokenId",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "address",
+				"name": "canceller",
+				"type": "address"
+			}
+		],
+		"name": "LoanRequestCancelled",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
 				"internalType": "address",
 				"name": "previousOwner",
 				"type": "address"
@@ -185,6 +247,37 @@ export const defi_abi =[
 			}
 		],
 		"name": "Transfer",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "borrower",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "loanId",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "amount",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "deadline",
+				"type": "uint256"
+			}
+		],
+		"name": "loanCreated",
 		"type": "event"
 	},
 	{
@@ -348,17 +441,23 @@ export const defi_abi =[
 		"inputs": [
 			{
 				"internalType": "uint256",
-				"name": "dexAmount",
+				"name": "dexAmountToStake",
 				"type": "uint256"
 			},
 			{
 				"internalType": "uint256",
-				"name": "deadline",
+				"name": "requestedLoanDuration",
 				"type": "uint256"
 			}
 		],
 		"name": "loan",
-		"outputs": [],
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "loanId",
+				"type": "uint256"
+			}
+		],
 		"stateMutability": "nonpayable",
 		"type": "function"
 	},
@@ -377,7 +476,7 @@ export const defi_abi =[
 		],
 		"name": "loanByNft",
 		"outputs": [],
-		"stateMutability": "nonpayable",
+		"stateMutability": "payable",
 		"type": "function"
 	},
 	{
@@ -407,6 +506,11 @@ export const defi_abi =[
 			},
 			{
 				"internalType": "uint256",
+				"name": "stakedDexAmount",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
 				"name": "interest",
 				"type": "uint256"
 			},
@@ -428,6 +532,11 @@ export const defi_abi =[
 			{
 				"internalType": "bool",
 				"name": "isBasedNft",
+				"type": "bool"
+			},
+			{
+				"internalType": "bool",
+				"name": "repaid",
 				"type": "bool"
 			},
 			{
@@ -468,7 +577,13 @@ export const defi_abi =[
 			}
 		],
 		"name": "makeLoanRequestByNft",
-		"outputs": [],
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "loanId",
+				"type": "uint256"
+			}
+		],
 		"stateMutability": "nonpayable",
 		"type": "function"
 	},
@@ -511,7 +626,7 @@ export const defi_abi =[
 				"type": "uint256"
 			}
 		],
-		"name": "nftLoanRequests",
+		"name": "nftLoanRequestLoanId",
 		"outputs": [
 			{
 				"internalType": "uint256",
@@ -546,13 +661,13 @@ export const defi_abi =[
 		"inputs": [
 			{
 				"internalType": "uint256",
-				"name": "ethAmount",
+				"name": "loanId",
 				"type": "uint256"
 			}
 		],
 		"name": "returnLoan",
 		"outputs": [],
-		"stateMutability": "nonpayable",
+		"stateMutability": "payable",
 		"type": "function"
 	},
 	{

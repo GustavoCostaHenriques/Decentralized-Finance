@@ -5,8 +5,9 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
+import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 
-contract DecentralizedFinance is ERC20, Ownable {
+contract DecentralizedFinance is ERC20, Ownable, ERC721Holder {
     using Counters for Counters.Counter;
     Counters.Counter private _loanIdCounter;
 
@@ -209,7 +210,7 @@ contract DecentralizedFinance is ERC20, Ownable {
 
     function loanByNft(IERC721 nftContract, uint256 nftId) external payable {
         require(address(nftContract)!=address(0), "NFT contract not configured" );
-        require(nftId>0);
+        require(nftId > 0);
 
         uint256 loanId = nftLoanRequestLoanId[address(nftContract)][nftId];
         require(loanId != 0, "No active loan request found for this NFT.");
@@ -238,11 +239,10 @@ contract DecentralizedFinance is ERC20, Ownable {
     }
 
     function checkLoan(uint256 loanId) external onlyOwner{
-        /* require(_loanIdCounter.current() <= loanId, "Invalid Loan Id");
-        Loan storage a =loans[loanId];
-        /* if (a.deadline a.) {
-            code
+       /*  require(_loanIdCounter.current() <= loanId, "Invalid Loan Id");
+        Loan storage loanToCheck  = loans[loanId];
+        if (loanToCheck.deadline< block.timestamp ) {
+            //code
         } */
-        // TODO: implement this */
     }
 }

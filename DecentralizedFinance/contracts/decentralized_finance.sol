@@ -12,36 +12,44 @@ contract DecentralizedFinance is ERC20, Ownable, ERC721Holder {
     Counters.Counter private _loanIdCounter;
 
     uint256 public dexSwapRate;
-    uint256 public maxLoanDuration = 30 days;
+    uint256 public maxLoanDuration = 30 days; 
+    uint256 periodicity;
+    uint256 interest;
+    uint256 termination;
 
     event loanCreated(address indexed borrower, uint256 loanId, uint256 amount, uint256 deadline);
-
-    event LoanRepaid(uint256 indexed loanId, address indexed borrower, uint256 amountPaid, uint256 dexAmountReturned);
-
-    event LoanRequestCancelled(uint256 indexed loanId, address indexed nftContractAddress, uint256 indexed nftTokenId, address canceller);
+    event PaymentMade(uint256 indexed loanId, address indexed payer, uint256 amountPaid, uint256 paymentNumber);
 
     struct Loan {
         uint256 deadline;
         uint256 amount;
-        uint256 periodicity;
         uint256 stakedDexAmount;
-        uint256 interest;
-        uint256 termination;
+
         address lender;
         address borrower;
         bool isBasedNft;
         bool repaid;
+
         IERC721 nftContract;
         uint256 nftId;
+
+        // Fields for periodic payment tracking
+        uint256 loanStartTime;        // Timestamp when loan payments cycle began
+        uint256 totalPaymentPeriods;  // Total number of interest payments expected
+        uint256 paymentsMade;         // Number of periodic interest payments successfully made
+        uint256 nextPaymentDueDate;   // Timestamp for the next payment
     }
 
     mapping(uint256 => Loan) public loans;
     mapping(address => mapping(uint256 => uint256)) public nftLoanRequestLoanId;
 
-    constructor(uint256 _rate) ERC20("DEX", "DEX") Ownable(msg.sender) {
+    constructor(uint256 _rate, uint256 _periodicity, uint256 _interest, uint256 _termination) ERC20("DEX", "DEX") Ownable(msg.sender) {
         require(_rate > 0, "Rate must be > 0");
         _mint(address(this), 10**18);
         dexSwapRate = _rate;
+        periodicity = _periodicity;
+        interest = _interest;
+        termination = _termination;
     }
 
     function buyDex() external payable {
@@ -100,19 +108,20 @@ contract DecentralizedFinance is ERC20, Ownable, ERC721Holder {
         uint256 actualDeadlineTimestamp = block.timestamp + requestedLoanDuration;
 
         Loan storage newLoan = loans[loanId];
-
+        newLoan.loanStartTime = block.timestamp;
         newLoan.deadline = actualDeadlineTimestamp;
         newLoan.amount = collateralValueInEth;
         newLoan.stakedDexAmount = dexAmountToStake;
-        newLoan.periodicity = 3;
-        newLoan.interest = 10;
-        newLoan.termination = 10;
         newLoan.lender = address(this);
         newLoan.borrower = msg.sender;
         newLoan.isBasedNft = false;
         newLoan.nftContract = IERC721(address(0));
         newLoan.nftId = 0;
         newLoan.repaid = false;
+
+        newLoan.paymentsMade = 0;
+        newLoan.totalPaymentPeriods = (actualDeadlineTimestamp - newLoan.loanStartTime) / periodicity;
+        newLoan.nextPaymentDueDate = newLoan.loanStartTime + periodicity;
 
         (bool sent, ) = msg.sender.call{value: collateralValueInEth}("");
         require(sent, "Failed to send ETH loan to borrower");
@@ -122,7 +131,51 @@ contract DecentralizedFinance is ERC20, Ownable, ERC721Holder {
         return loanId;
     }
 
-    function returnLoan(uint256 loanId) external  payable {
+    function makePayment(uint256 loanId) external payable {
+        require(loanId > 0, "Invalid loan ID.");
+        require(msg.value > 0, "Send ETH to make payment.");
+
+        Loan storage loanToPay = loans[loanId];
+
+        require(loanToPay.borrower != address(0), "Loan does not exist.");
+        require(loanToPay.borrower == msg.sender, "Only the borrower can make payments.");
+        require(!loanToPay.repaid, "Loan has already been fully repaid.");
+
+        require(block.timestamp >= loanToPay.nextPaymentDueDate, "Payment not due yet or made too early.");
+
+        uint256 interestDueThisPeriod = (loanToPay.amount * interest) / 100; 
+
+        bool isFinalPaymentPeriod = (loanToPay.paymentsMade == loanToPay.totalPaymentPeriods - 1);
+
+        if (isFinalPaymentPeriod) {
+            uint256 finalPaymentAmount = loanToPay.amount + interestDueThisPeriod;
+            require(msg.value == finalPaymentAmount, "Incorrect amount for final payment (principal + interest).");
+
+            loanToPay.paymentsMade++;
+            loanToPay.repaid = true;
+            loanToPay.nextPaymentDueDate = type(uint256).max; 
+
+            if (!loanToPay.isBasedNft && loanToPay.stakedDexAmount > 0) {
+                _transfer(address(this), msg.sender, loanToPay.stakedDexAmount);
+            }
+            else if (loanToPay.isBasedNft && loanToPay.stakedDexAmount > 0)
+            {
+                _transfer(address(this), loanToPay.lender, loanToPay.stakedDexAmount);
+                loanToPay.nftContract.safeTransferFrom(address(this), loanToPay.borrower, loanToPay.nftId);
+            }
+        } else if (loanToPay.paymentsMade < loanToPay.totalPaymentPeriods) { 
+            require(msg.value == interestDueThisPeriod, "Incorrect amount for periodic interest payment.");
+            
+            loanToPay.paymentsMade++;
+            loanToPay.nextPaymentDueDate += periodicity; 
+        } else {
+            revert("Loan payment obligations already met or invalid state.");
+        }
+
+        emit PaymentMade(loanId, msg.sender, msg.value, loanToPay.paymentsMade);
+    }
+
+    function terminateLoan(uint256 loanId) external  payable {
         require(loanId > 0, "id must be valid");
         require(msg.value > 0, "Send ETH to return loan");
 
@@ -131,15 +184,15 @@ contract DecentralizedFinance is ERC20, Ownable, ERC721Holder {
         require(currentLoan.borrower==address(msg.sender));
         require(currentLoan.isBasedNft==false);
         require(!currentLoan.repaid, "Loan has already been repaid.");
+        require(currentLoan.paymentsMade==0,"One Payment as already been made cant make full repayment");
 
-        uint256 terminationFeeAmount = (currentLoan.amount * currentLoan.termination) / 100;
+        uint256 terminationFeeAmount = (currentLoan.amount * termination) / 100;
         uint256 totalAmountDue = terminationFeeAmount + currentLoan.amount;
         require(msg.value == totalAmountDue,"Incorrect ETH amount for full repayment including termination fee.");
 
         currentLoan.repaid = true;
         _transfer(address(this), msg.sender, currentLoan.stakedDexAmount);
 
-        emit LoanRepaid(loanId, msg.sender, msg.value, currentLoan.stakedDexAmount);
     }
 
     function getBalance() public view onlyOwner returns (uint256) {
@@ -174,9 +227,6 @@ contract DecentralizedFinance is ERC20, Ownable, ERC721Holder {
         newLoan.deadline = actualDeadlineTimestamp;
         newLoan.amount = loanAmount;
         newLoan.stakedDexAmount = 0;
-        newLoan.periodicity = 3;
-        newLoan.interest = 10;
-        newLoan.termination = 10;
         newLoan.lender = address(0);
         newLoan.borrower = msg.sender;
         newLoan.isBasedNft = true;
@@ -204,8 +254,7 @@ contract DecentralizedFinance is ERC20, Ownable, ERC721Holder {
 
         delete loans[loanId];
         delete nftLoanRequestLoanId[address(nftContract)][nftId];
-        
-        emit LoanRequestCancelled(loanId, address(nftContract), nftId, msg.sender);
+
     }
 
     function loanByNft(IERC721 nftContract, uint256 nftId) external payable {
@@ -238,11 +287,29 @@ contract DecentralizedFinance is ERC20, Ownable, ERC721Holder {
         //emit loanCreated(msg.sender, loanToFund.amount, loanToFund.deadline);
     }
 
-    function checkLoan(uint256 loanId) external onlyOwner{
-       /*  require(_loanIdCounter.current() <= loanId, "Invalid Loan Id");
-        Loan storage loanToCheck  = loans[loanId];
-        if (loanToCheck.deadline< block.timestamp ) {
-            //code
-        } */
+    function checkLoan(uint256 loanId) external onlyOwner {
+        require(loanId > 0 && loanId < _loanIdCounter.current(), "Invalid Loan ID or loan does not exist yet.");
+
+        Loan storage loanToCheck = loans[loanId];
+
+        require(loanToCheck.borrower != address(0), "Loan does not exist.");
+        require(!loanToCheck.repaid, "Loan is already repaid.");
+
+        bool isPeriodicPaymentOverdue = (loanToCheck.nextPaymentDueDate != type(uint256).max &&
+                                    loanToCheck.nextPaymentDueDate < block.timestamp);
+        bool isFinalDeadlineOverdue = loanToCheck.deadline < block.timestamp;
+
+        if (isPeriodicPaymentOverdue || isFinalDeadlineOverdue) {
+            uint256 collateralInfo = 0;
+
+            if (loanToCheck.isBasedNft) {
+                require(loanToCheck.lender != address(0), "NFT loan was not funded.");
+                loanToCheck.nftContract.safeTransferFrom(address(this), loanToCheck.lender, loanToCheck.nftId);
+                collateralInfo = loanToCheck.nftId;
+            } else {
+                collateralInfo = loanToCheck.stakedDexAmount;
+            }
+            loanToCheck.repaid = true;
+        }
     }
 }

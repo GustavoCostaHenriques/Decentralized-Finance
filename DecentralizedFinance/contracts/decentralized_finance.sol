@@ -16,6 +16,7 @@ contract DecentralizedFinance is ERC20, Ownable, ERC721Holder {
     uint256 periodicity;
     uint256 interest;
     uint256 termination;
+    uint256 totalStacked;
 
     event loanCreated(address indexed borrower, uint256 loanId, uint256 amount, uint256 deadline);
     event PaymentMade(uint256 indexed loanId, address indexed payer, uint256 amountPaid, uint256 paymentNumber);
@@ -38,6 +39,7 @@ contract DecentralizedFinance is ERC20, Ownable, ERC721Holder {
         uint256 totalPaymentPeriods;  // Total number of interest payments expected
         uint256 paymentsMade;         // Number of periodic interest payments successfully made
         uint256 nextPaymentDueDate;   // Timestamp for the next payment
+        bool paymentPassed;
     }
 
     mapping(uint256 => Loan) public loans;
@@ -61,6 +63,9 @@ contract DecentralizedFinance is ERC20, Ownable, ERC721Holder {
 
         uint256 contractDexBalance = balanceOf(address(this));
         require(dexAmount <= contractDexBalance, "Not enough DEX in the contract");
+        //to ensure that the contract doesnt use the stacked dex to make transactions if we didnt check this the contract would use stacked dex from a loan to make
+        // a trasaction this could result in the contract not having enough dex to give to the borrower if the loan was payed
+        require(dexAmount <= contractDexBalance-totalStacked);
         _transfer(address(this), msg.sender, dexAmount);
     }
 
@@ -122,7 +127,9 @@ contract DecentralizedFinance is ERC20, Ownable, ERC721Holder {
         newLoan.paymentsMade = 0;
         newLoan.totalPaymentPeriods = (actualDeadlineTimestamp - newLoan.loanStartTime) / periodicity;
         newLoan.nextPaymentDueDate = newLoan.loanStartTime + periodicity;
+        newLoan.paymentPassed = false;
 
+        totalStacked += dexAmountToStake;
         (bool sent, ) = msg.sender.call{value: collateralValueInEth}("");
         require(sent, "Failed to send ETH loan to borrower");
 
@@ -233,6 +240,7 @@ contract DecentralizedFinance is ERC20, Ownable, ERC721Holder {
         newLoan.nftContract = nftContract;
         newLoan.nftId = nftId;
         newLoan.repaid = false;
+        newLoan.paymentPassed = false;
 
         nftLoanRequestLoanId[address(nftContract)][nftId] = loanId;
 
@@ -257,41 +265,55 @@ contract DecentralizedFinance is ERC20, Ownable, ERC721Holder {
 
     }
 
-    function loanByNft(IERC721 nftContract, uint256 nftId) external payable {
-        require(address(nftContract)!=address(0), "NFT contract not configured" );
-        require(nftId > 0);
+    function loanByNft(IERC721 nftContract, uint256 nftId) external payable{
+        require(address(nftContract) != address(0), "NFT contract address cannot be zero.");
+        require(nftId > 0, "NFT ID must be valid.");
 
         uint256 loanId = nftLoanRequestLoanId[address(nftContract)][nftId];
         require(loanId != 0, "No active loan request found for this NFT.");
 
         Loan storage loanToFund = loans[loanId];
-        require(loanToFund.lender == address(0));
+
+        require(loanToFund.borrower != address(0), "Loan request data is invalid.");
+        require(loanToFund.isBasedNft == true, "Loan request is not NFT-based.");
+        require(loanToFund.lender == address(0), "Loan request has already been funded or is invalid.");
+        require(msg.sender != loanToFund.borrower, "Borrower cannot lend to themselves.");
+
+        require(msg.value == loanToFund.amount, "Incorrect ETH amount sent by lender to fund loan.");
+
+        require(dexSwapRate > 0, "DEX swap rate not configured.");
         uint256 dexToStakeByLender = loanToFund.amount / dexSwapRate;
+        require(dexToStakeByLender > 0, "Calculated DEX stake for lender is zero.");
 
-        uint256 lenderDexBalance = balanceOf(msg.sender); // balanceOf is from ERC20
+        uint256 lenderDexBalance = balanceOf(msg.sender);
         require(lenderDexBalance >= dexToStakeByLender, "Lender has insufficient DEX balance to stake.");
+        
         _transfer(msg.sender, address(this), dexToStakeByLender);
+        
+        loanToFund.stakedDexAmount = dexToStakeByLender; 
 
-        loanToFund.stakedDexAmount = dexToStakeByLender;
-        loanToFund.lender = msg.sender;
 
         loanToFund.nftContract.safeTransferFrom(loanToFund.borrower, address(this), loanToFund.nftId);
 
+        loanToFund.lender = msg.sender;
         delete nftLoanRequestLoanId[address(nftContract)][nftId];
+
+        loanToFund.loanStartTime = block.timestamp;
+        loanToFund.paymentsMade = 0;
+
+        require(periodicity > 0, "Payment periodicity not set or zero.");
+        loanToFund.totalPaymentPeriods = (loanToFund.deadline - loanToFund.loanStartTime) / periodicity;
+        loanToFund.nextPaymentDueDate = loanToFund.loanStartTime + periodicity;
 
         (bool success, ) = loanToFund.borrower.call{value: loanToFund.amount}("");
         require(success, "Failed to transfer ETH to borrower.");
-
-        // TODO: meter event bem
-
-        //emit loanCreated(msg.sender, loanToFund.amount, loanToFund.deadline);
     }
 
-    function checkLoan(uint256 loanId) external onlyOwner {
-        require(loanId > 0 && loanId < _loanIdCounter.current(), "Invalid Loan ID or loan does not exist yet.");
-
+    function checkLoan(uint256 loanId) external onlyOwner  returns (bool){
+        require(loanId > 0 && loanId <= _loanIdCounter.current(), "Invalid Loan ID or loan does not exist yet.");
+        
         Loan storage loanToCheck = loans[loanId];
-
+        require(!loanToCheck.paymentPassed, "Payment Failed");
         require(loanToCheck.borrower != address(0), "Loan does not exist.");
         require(!loanToCheck.repaid, "Loan is already repaid.");
 
@@ -309,7 +331,8 @@ contract DecentralizedFinance is ERC20, Ownable, ERC721Holder {
             } else {
                 collateralInfo = loanToCheck.stakedDexAmount;
             }
-            loanToCheck.repaid = true;
+            loanToCheck.paymentPassed = true;
         }
+        return loanToCheck.paymentPassed;
     }
 }

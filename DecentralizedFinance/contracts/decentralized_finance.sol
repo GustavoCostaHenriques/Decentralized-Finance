@@ -69,6 +69,7 @@ contract DecentralizedFinance is ERC20, Ownable, ERC721Holder {
         _transfer(address(this), msg.sender, dexAmount);
     }
 
+
     function sellDex(uint256 dexAmountToSell) external {
         require(dexAmountToSell > 0, "Must sell at least some DEX");
         require(dexSwapRate>0);
@@ -138,6 +139,16 @@ contract DecentralizedFinance is ERC20, Ownable, ERC721Holder {
         return loanId;
     }
 
+    function isNftAvailable(IERC721 nftContract, uint256 nftId) public view returns (bool) {
+        uint256 loanId = nftLoanRequestLoanId[address(nftContract)][nftId];
+        if (loanId == 0) {
+            return true; 
+        }
+        Loan storage l = loans[loanId];
+        return l.repaid || l.lender != address(0);
+    }
+
+
     function makePayment(uint256 loanId) external payable {
         require(loanId > 0, "Invalid loan ID.");
         require(msg.value > 0, "Send ETH to make payment.");
@@ -148,7 +159,7 @@ contract DecentralizedFinance is ERC20, Ownable, ERC721Holder {
         require(loanToPay.borrower == msg.sender, "Only the borrower can make payments.");
         require(!loanToPay.repaid, "Loan has already been fully repaid.");
 
-        require(block.timestamp < loanToPay.nextPaymentDueDate, "Payment not due yet or made too early.");
+        require(block.timestamp < loanToPay.nextPaymentDueDate, "Payment not due yet or made too late.");
 
         uint256 interestDueThisPeriod = (loanToPay.amount * interest) / 100; 
 

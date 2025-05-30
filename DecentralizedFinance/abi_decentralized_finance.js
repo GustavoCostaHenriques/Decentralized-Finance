@@ -1,9 +1,24 @@
-export const defi_abi =[
+export const defi_abi = [
 	{
 		"inputs": [
 			{
 				"internalType": "uint256",
 				"name": "_rate",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_periodicity",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_interest",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_termination",
 				"type": "uint256"
 			}
 		],
@@ -148,68 +163,6 @@ export const defi_abi =[
 		"inputs": [
 			{
 				"indexed": true,
-				"internalType": "uint256",
-				"name": "loanId",
-				"type": "uint256"
-			},
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "borrower",
-				"type": "address"
-			},
-			{
-				"indexed": false,
-				"internalType": "uint256",
-				"name": "amountPaid",
-				"type": "uint256"
-			},
-			{
-				"indexed": false,
-				"internalType": "uint256",
-				"name": "dexAmountReturned",
-				"type": "uint256"
-			}
-		],
-		"name": "LoanRepaid",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": true,
-				"internalType": "uint256",
-				"name": "loanId",
-				"type": "uint256"
-			},
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "nftContractAddress",
-				"type": "address"
-			},
-			{
-				"indexed": true,
-				"internalType": "uint256",
-				"name": "nftTokenId",
-				"type": "uint256"
-			},
-			{
-				"indexed": false,
-				"internalType": "address",
-				"name": "canceller",
-				"type": "address"
-			}
-		],
-		"name": "LoanRequestCancelled",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": true,
 				"internalType": "address",
 				"name": "previousOwner",
 				"type": "address"
@@ -222,6 +175,37 @@ export const defi_abi =[
 			}
 		],
 		"name": "OwnershipTransferred",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "uint256",
+				"name": "loanId",
+				"type": "uint256"
+			},
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "payer",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "amountPaid",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "paymentNumber",
+				"type": "uint256"
+			}
+		],
+		"name": "PaymentMade",
 		"type": "event"
 	},
 	{
@@ -381,7 +365,13 @@ export const defi_abi =[
 			}
 		],
 		"name": "checkLoan",
-		"outputs": [],
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
 		"stateMutability": "nonpayable",
 		"type": "function"
 	},
@@ -432,6 +422,30 @@ export const defi_abi =[
 				"internalType": "uint256",
 				"name": "",
 				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "contract IERC721",
+				"name": "nftContract",
+				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "nftId",
+				"type": "uint256"
+			}
+		],
+		"name": "isNftAvailable",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
 			}
 		],
 		"stateMutability": "view",
@@ -501,22 +515,7 @@ export const defi_abi =[
 			},
 			{
 				"internalType": "uint256",
-				"name": "periodicity",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
 				"name": "stakedDexAmount",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "interest",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "termination",
 				"type": "uint256"
 			},
 			{
@@ -548,6 +547,31 @@ export const defi_abi =[
 				"internalType": "uint256",
 				"name": "nftId",
 				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "loanStartTime",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "totalPaymentPeriods",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "paymentsMade",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "nextPaymentDueDate",
+				"type": "uint256"
+			},
+			{
+				"internalType": "bool",
+				"name": "paymentPassed",
+				"type": "bool"
 			}
 		],
 		"stateMutability": "view",
@@ -585,6 +609,19 @@ export const defi_abi =[
 			}
 		],
 		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "loanId",
+				"type": "uint256"
+			}
+		],
+		"name": "makePayment",
+		"outputs": [],
+		"stateMutability": "payable",
 		"type": "function"
 	},
 	{
@@ -638,6 +675,40 @@ export const defi_abi =[
 		"type": "function"
 	},
 	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			},
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			},
+			{
+				"internalType": "bytes",
+				"name": "",
+				"type": "bytes"
+			}
+		],
+		"name": "onERC721Received",
+		"outputs": [
+			{
+				"internalType": "bytes4",
+				"name": "",
+				"type": "bytes4"
+			}
+		],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
 		"inputs": [],
 		"name": "owner",
 		"outputs": [
@@ -655,19 +726,6 @@ export const defi_abi =[
 		"name": "renounceOwnership",
 		"outputs": [],
 		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "uint256",
-				"name": "loanId",
-				"type": "uint256"
-			}
-		],
-		"name": "returnLoan",
-		"outputs": [],
-		"stateMutability": "payable",
 		"type": "function"
 	},
 	{
@@ -707,6 +765,19 @@ export const defi_abi =[
 			}
 		],
 		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "loanId",
+				"type": "uint256"
+			}
+		],
+		"name": "terminateLoan",
+		"outputs": [],
+		"stateMutability": "payable",
 		"type": "function"
 	},
 	{

@@ -1,16 +1,15 @@
 const web3 = new Web3(window.ethereum);
 
 // the part is related to the DecentralizedFinance smart contract
-const defi_contractAddress = "0x1C01F65566316d25f61f01d1dD0244DBc185C9e2";
+const defi_contractAddress = "0x39ed2af0A834208735Ade4a832723Ad8AB6A7630";
 import { defi_abi } from "./abi_decentralized_finance.js";
 const defi_contract = new web3.eth.Contract(defi_abi, defi_contractAddress);
 
 // the part is related to the the SimpleNFT smart contract
-const nft_contractAddress = "0x669086e05E6bD0b23623160a73682fA15F8d7Cb7";
+const nft_contractAddress = "0x28eE311d5Ab665f1B629039850c53Dd3F00f3ae0";
 import { nft_abi } from "./abi_nft.js";
 const nft_contract = new web3.eth.Contract(nft_abi, nft_contractAddress);
 
-// Variável para armazenar a conta conectada
 let connectedAccount = null;
 
 async function connectMetaMask() {
@@ -30,14 +29,12 @@ async function connectMetaMask() {
     }
 }
 
-// Função auxiliar para obter a conta conectada
 async function getConnectedAccount() {
     if (connectedAccount) {
         return connectedAccount;
     }
-    // Tenta obter a conta se não estiver já armazenada (útil ao recarregar a dashboard diretamente)
     try {
-        const accounts = await window.ethereum.request({ method: "eth_accounts" }); // eth_accounts não pede permissão, só retorna as já conectadas
+        const accounts = await window.ethereum.request({ method: "eth_accounts" }); 
         if (accounts.length > 0) {
             connectedAccount = accounts[0];
             return connectedAccount;
@@ -52,7 +49,6 @@ async function getConnectedAccount() {
         return null;
     }
 }
-
 
 async function setRateEthToDex() {
     const rate = document.getElementById("rateInput").value;
@@ -180,6 +176,39 @@ async function returnLoan() {
     }
 }
 
+async function makeLoanPayment() {
+    const loanId = document.getElementById("paymentLoanId").value;
+    const amountInEth = document.getElementById("paymentAmountEth").value;
+
+    if (!loanId || loanId <= 0) {
+        alert("Please enter a valid Loan ID.");
+        return;
+    }
+
+    if (!amountInEth || amountInEth <= 0) {
+        alert("Please enter a valid ETH amount.");
+        return;
+    }
+
+    try {
+        const account = await getConnectedAccount();
+        if (!account) return;
+
+        const amountInWei = web3.utils.toWei(amountInEth.toString(), "ether");
+
+        await defi_contract.methods.makePayment(loanId).send({
+            from: account,
+            value: amountInWei
+        });
+
+        document.getElementById("status").innerText = `Payment made successfully for loan #${loanId}.`;
+    } catch (error) {
+        document.getElementById("status").innerText = "Error making payment. See console for details.";
+        console.error("Error making payment:", error);
+    }
+}
+
+
 async function getEthTotalBalance() {
     const account = await getConnectedAccount();
     if (!account) return;
@@ -194,11 +223,66 @@ async function getEthTotalBalance() {
 }
 
 async function getRateEthToDex() {
-    // TODO: implement this
+    try {
+        const rate = await defi_contract.methods.dexSwapRate().call();
+        document.getElementById("exchangeRate").innerText = "Exchange rate: " + rate;
+    } catch (error) {
+        console.error("Failed to get ETH to DEX rate:", error);
+        document.getElementById("exchangeRate").innerText = "Error: Could not retrieve Exchange Rate. See console.";
+    }
 }
 
 async function getAvailableNfts() {
-    // TODO: implement this
+  try {
+    const account = await getConnectedAccount();
+    if (!account) return;
+
+    const availableNftsContainer = document.getElementById("availableNftsContainer");
+    availableNftsContainer.innerText = "Loading availables NFTs...";
+
+    const nftAddress = nft_contractAddress; 
+    const maxTokenId = 100; 
+
+    const availableNfts = [];
+
+    for (let tokenId = 1; tokenId <= maxTokenId; tokenId++) {
+      try {
+        const owner = await nft_contract.methods.ownerOf(tokenId).call();
+        if (owner.toLowerCase() === account.toLowerCase()) {
+          const isAvailable = await defi_contract.methods.isNftAvailable(nftAddress, tokenId).call({ from: account });
+          if (isAvailable) {
+            let tokenURI = "";
+            try {
+              tokenURI = await nft_contract.methods.tokenURI(tokenId).call();
+            } catch (err) {
+              console.warn(`Error obtaining tokenURI for token ${tokenId}:`, err);
+            }
+            availableNfts.push({ nftAddress, tokenId, tokenURI });
+          }
+        }
+      } catch (err) {
+        continue;
+      }
+    }
+
+    if (availableNfts.length === 0) {
+      availableNftsContainer.innerText = "There are no available NFTs.";
+    } else {
+      let html = "<ul>";
+      availableNfts.forEach(({ nftAddress, tokenId, tokenURI }) => {
+        html += `<li>NFT ID: ${tokenId} <br>TokenURI: ${tokenURI}</li>`;
+      });
+      html += "</ul>";
+      availableNftsContainer.innerHTML = html;
+    }
+
+    return availableNfts;
+
+  } catch (error) {
+    console.error("Error obtaining available NFTs:", error);
+    const availableNftsContainer = document.getElementById("availableNftsContainer");
+    availableNftsContainer.innerText = "Error obtaining available NFTs.";
+  }
 }
 
 async function getTotalBorrowedAndNotPaidBackEth() {
@@ -293,7 +377,7 @@ async function mintNft() {
         const result = await nft_contract.methods.mint(tokenURI).send({ from: account, value: mintPrice });
         // Para pegar o tokenId gerado, teríamos que parsear os logs do evento ERC721.Transfer
         // Por simplicidade, exibimos o hash da transação.
-        document.getElementById("mintNftStatus").innerText = `NFT minted successfully! Transaction hash: ${result.transactionHash}`;
+        document.getElementById("mintNftStatus").innerText = `NFT minted successfully! Token ID: ${result.events.Transfer.returnValues.tokenId} | Transaction hash: ${result.transactionHash}`;
         console.log("Mint NFT transaction result:", result);
     } catch (error) {
         console.error("Error minting NFT:", error);
@@ -301,12 +385,88 @@ async function mintNft() {
     }
 }
 
+async function approveNft() {
+    const contractAddress = document.getElementById("approveNftContract").value.trim();
+    const tokenId = document.getElementById("approveNftTokenId").value.trim();
+    const status = document.getElementById("approveNftStatus");
+
+    if (!web3.utils.isAddress(contractAddress) || tokenId === "") {
+        status.innerText = "Please enter a valid NFT contract address and token ID.";
+        return;
+    }
+
+    const account = await getConnectedAccount();
+    if (!account) return;
+
+    try {
+        await nft_contract.methods.approve(defi_contractAddress, tokenId).send({ from: account });
+
+        status.innerText = `NFT Token #${tokenId} approved successfully for DeFi contract.`;
+    } catch (error) {
+        console.error("Approval error:", error);
+        status.innerText = "Failed to approve NFT. See console for details.";
+    }
+}
+
 async function loanByNft() {
-    // TODO: implement this
+    const nftAddress = document.getElementById("fundNftContractAddressInput").value.trim();
+    const tokenId = document.getElementById("fundNftTokenIdInput").value.trim();
+
+    if (!web3.utils.isAddress(nftAddress)) {
+        alert("Please enter a valid NFT Contract Address.");
+        return;
+    }
+
+    if (!tokenId || isNaN(tokenId)) {
+        alert("Please enter a valid Token ID.");
+        return;
+    }
+
+    const account = await getConnectedAccount();
+    if (!account) return;
+
+    try {
+        const loanId = await defi_contract.methods.nftLoanRequestLoanId(nftAddress, tokenId).call();
+
+        const loan = await defi_contract.methods.loans(loanId).call();
+        const amountInWei = loan.amount;
+
+        await defi_contract.methods.loanByNft(nftAddress, tokenId).send({
+            from: account,
+            value: amountInWei
+        });
+
+        document.getElementById("fundNftLoanStatus").innerText = `Loan #${loanId} funded successfully with NFT ${tokenId}.`;
+    } catch (error) {
+        document.getElementById("fundNftLoanStatus").innerText = "Error funding loan by NFT. See console for details.";
+        console.error("Error funding NFT loan:", error);
+    }
 }
 
 async function checkLoan() {
-    // TODO: implement this
+    const loanId = document.getElementById("loanIdToCheckInput").value;
+
+    if (!loanId || isNaN(loanId)) {
+        alert("Please enter a valid Loan ID.");
+        return;
+    }
+
+    const account = await getConnectedAccount();
+    if (!account) return;
+
+    try {
+        const result = await defi_contract.methods.checkLoan(loanId).send({ from: account });
+
+        if (result) {
+            document.getElementById("checkLoanStatus").innerText = `Loan #${loanId} is in default. Collateral claimed.`;
+        } else {
+            document.getElementById("checkLoanStatus").innerText = `Loan #${loanId} is still up to date.`;
+        }
+
+    } catch (error) {
+        document.getElementById("checkLoanStatus").innerText = "Error checking loan status. See console for details.";
+        console.error("Error checking loan status:", error);
+    }
 }
 
 async function getAllTokenURIs() {
@@ -342,4 +502,6 @@ if (window.location.pathname.endsWith("dashboard.html")) {
     window.checkLoanStatus = checkLoanStatus;
     window.getAllTokenURIs = getAllTokenURIs;
     window.mintNft = mintNft; 
+    window.approveNft = approveNft;
+    window.makeLoanPayment = makeLoanPayment;
 }

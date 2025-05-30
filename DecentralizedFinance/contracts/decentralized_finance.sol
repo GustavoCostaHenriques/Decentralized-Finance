@@ -110,7 +110,7 @@ contract DecentralizedFinance is ERC20, Ownable, ERC721Holder {
         loanId = _loanIdCounter.current();
         
 
-        uint256 actualDeadlineTimestamp = block.timestamp + requestedLoanDuration;
+        uint256 actualDeadlineTimestamp = block.timestamp;
 
         Loan storage newLoan = loans[loanId];
         newLoan.loanStartTime = block.timestamp;
@@ -148,7 +148,7 @@ contract DecentralizedFinance is ERC20, Ownable, ERC721Holder {
         require(loanToPay.borrower == msg.sender, "Only the borrower can make payments.");
         require(!loanToPay.repaid, "Loan has already been fully repaid.");
 
-        require(block.timestamp >= loanToPay.nextPaymentDueDate, "Payment not due yet or made too early.");
+        require(block.timestamp < loanToPay.nextPaymentDueDate, "Payment not due yet or made too early.");
 
         uint256 interestDueThisPeriod = (loanToPay.amount * interest) / 100; 
 

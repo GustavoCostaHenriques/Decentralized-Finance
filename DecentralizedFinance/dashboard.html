@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Decentralized Finance Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.9.0/dist/web3.min.js"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            color: #007bff;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .dashboard-container {
+            max-width: 850px; /* Aumentei um pouco para acomodar 2 colunas confortavelmente */
+            width: 100%;
+            display: flex;
+            flex-wrap: wrap; /* Permite que as 'linhas' de seções quebrem */
+            justify-content: center; /* Centraliza as linhas de seções */
+            gap: 20px; /* Espaçamento maior entre as linhas de seções */
+        }
+
+        /* Contêineres para agrupar as seções em pares */
+        .section-row {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center; /* Centraliza as seções dentro da linha */
+            gap: 20px; /* Espaçamento entre as seções dentro da mesma linha */
+            width: 100%; /* Ocupa a largura total do dashboard-container */
+        }
+
+        .section {
+            background-color: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 0 8px rgba(0, 0, 0, 0.08);
+            border: 1px solid #eee;
+            flex: 1; /* Permite que as seções dentro de uma linha se expandam igualmente */
+            min-width: 350px; /* Largura mínima para cada seção (ajustada para ser mais confortável em 2 colunas) */
+            max-width: calc(50% - 10px); /* Para duas colunas com gap */
+            box-sizing: border-box; /* Inclui padding e borda na largura */
+        }
+
+        /* Estilo específico para a seção de Set Rate para ocupar a largura total no topo */
+        .section.full-width {
+            max-width: 100%;
+            min-width: unset; /* Remove o min-width para que possa se ajustar */
+        }
+
+
+        .section-title {
+            font-size: 1em;
+            font-weight: bold;
+            color: #555;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+
+        label {
+            font-weight: bold;
+            font-size: 0.9em;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        input[type="text"],
+        input[type="number"] {
+            padding: 6px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: calc(100% - 14px);
+            margin-bottom: 10px;
+            box-sizing: border-box;
+        }
+
+        button {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 4px;
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: background-color 0.3s ease;
+            margin-top: 5px;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        p {
+            font-style: italic;
+            color: #777;
+            font-size: 0.85em;
+            width: 100%;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Decentralized Finance Dashboard</h1>
+
+    <div class="dashboard-container">
+        <div class="section-row">
+            <div class="section">   
+                <h2 class="section-title">Set DEX Exchange Rate</h2>
+                <label for="rateInput">Set DEX Swap Rate (wei per DEX):</label>
+                <input type="number" id="rateInput" />
+                <button onclick="setRateEthToDex()">Set Rate</button>
+                <p id="rateStatus"></p>
+            </div>
+            <div class="section">
+                <h2 class="section-title">Exchange Rate</h2>
+                <button onclick="getRateEthToDex()">Get Exchange Rate</button>
+                <p id="exchangeRate"></p>
+            </div>
+        </div>
+
+        <div class="section-row">
+            <div class="section">
+                <h2 class="section-title">Buy DEX Tokens</h2>
+                <label for="buyEthAmount">Buy DEX - Send ETH amount (in wei):</label>
+                <input type="number" id="buyEthAmount" />
+                <button onclick="buyDex()">Buy DEX</button>
+                <p id="buyStatus"></p>
+            </div>
+
+            <div class="section">
+                <h2 class="section-title">Sell DEX Tokens</h2>
+                <label for="sellDexAmount">Sell DEX - Amount to sell:</label>
+                <input type="number" id="sellDexAmount" />
+                <button onclick="sellDex()">Sell DEX</button>
+                <p id="sellStatus"></p>
+            </div>
+        </div>
+
+        <div class="section-row">
+            <div class="section">
+                <h2 class="section-title">DEX Balance</h2>
+                <button onclick="getDex()">Get My DEX Balance</button>
+                <p id="dexBalance"></p>
+            </div>
+
+            <div class="section">
+                <h2 class="section-title">Total ETH Borrowed & Not Paid Back</h2>
+                <button onclick="getTotalBorrowedAndNotPaidBackEth()">Calculate Unpaid ETH</button>
+                <p id="totalUnpaidEthStatus"></p>
+            </div>
+
+            <div class="section">
+                <h2 class="section-title">Contract ETH Balance</h2>
+                <button onclick="getEthTotalBalance()">Get Contract ETH Balance</button>
+                <p id="contractEthBalance"></p>
+            </div>
+        </div>
+
+        <div class="section-row">
+            <div class="section">
+                <h2 class="section-title">Request Loan</h2>
+                <label for="loanDexAmountToStake">DEX Amount to Stake:</label>
+                <input type="number" id="loanDexAmountToStake" placeholder="e.g., 100" />
+
+                <label for="loanDuration">Loan Duration (seconds):</label>
+                <input type="number" id="loanDuration" placeholder="e.g., 2592000 (30 days)" />
+                <button onclick="loan()">Request Loan</button>
+                <p id="loanStatus"></p>
+                <p>Note: Max loan duration is 30 days (2592000 seconds).</p>
+            </div>
+
+            <div class="section">
+                <h2 class="section-title">Return Loan</h2>
+                <label for="returnLoanId">Loan ID:</label>
+                <input type="number" id="returnLoanId" placeholder="e.g., 1" />
+                <label for="returnLoanEthAmount">ETH Amount to Return (wei):</label>
+                <input type="number" id="returnLoanEthAmount" placeholder="e.g., 100000000000000000" />
+                <button onclick="returnLoan()">Return Loan</button>
+                <p id="returnLoanStatus"></p>
+                <p>Note: Ensure you send the exact amount including fees.</p>
+            </div>
+        </div>
+
+        <div class="section-row">
+            <div class="section">
+                <h2 class="section-title">Make NFT loan request</h2>
+                <label for="nftContractAddressInput">NFT Contract Address:</label>
+                <input type="text" id="nftContractAddressInput" placeholder="e.g., 0x..." value="0xfaa72607FFba7BF45A9678cd6d3E11f619a48B7e" />
+
+                <label for="nftTokenIdInput">NFT Token ID:</label>
+                <input type="number" id="nftTokenIdInput" placeholder="e.g., 123" />
+
+                <label for="nftLoanAmountInput">Loan Amount (in wei):</label>
+                <input type="number" id="nftLoanAmountInput" placeholder="e.g., 100000000000000000" />
+
+                <label for="nftLoanDeadlineInput">Loan Deadline (seconds):</label>
+                <input type="number" id="nftLoanDeadlineInput" placeholder="e.g., 2592000 (30 days)" />
+
+                <button onclick="makeLoanRequestByNft()">Make Request</button>
+                <p id="makeNftLoanRequestStatus"></p>
+                <p>Note: Ensure you own the NFT and the contract has enough ETH.</p>
+            </div>
+
+            <div class="section">
+                <h2 class="section-title">Cancel NFT Loan Request</h2>
+                <label for="cancelNftContractAddressInput">NFT Contract Address:</label>
+                <input type="text" id="cancelNftContractAddressInput" placeholder="e.g., 0x..." value="0xfaa72607FFba7BF45A9678cd6d3E11f619a48B7e" />
+
+                <label for="cancelNftTokenIdInput">NFT Token ID:</label>
+                <input type="number" id="cancelNftTokenIdInput" placeholder="e.g., 123" />
+
+                <button onclick="cancelLoanRequestByNft()">Cancel Request</button>
+                <p id="cancelNftLoanRequestStatus"></p>
+                <p>Note: Only the NFT owner can cancel a request.</p>
+            </div>
+
+            <div class="section">
+                <h2 class="section-title">Fund NFT Loan Request</h2>
+                <label for="fundNftContractAddressInput">NFT Contract Address:</label>
+                <input type="text" id="fundNftContractAddressInput" placeholder="e.g., 0x..." value="0xfaa72607FFba7BF45A9678cd6d3E11f619a48B7e" />
+
+                <label for="fundNftTokenIdInput">NFT Token ID:</label>
+                <input type="number" id="fundNftTokenIdInput" placeholder="e.g., 123" />
+
+                <label for="fundLoanAmountInput">ETH to Fund (wei):</label>
+                <input type="number" id="fundLoanAmountInput" placeholder="e.g., 100000000000000000" />
+
+                <button onclick="loanToNft()">Fund Loan</button>
+                <p id="loanToNftStatus"></p>
+                <p>Note: This sends ETH and locks the NFT as collateral.</p>
+            </div>
+
+        </div>
+
+        <div class="section-row">
+            <div class="section">
+                <h2 class="section-title">Make Loan Payment</h2>
+                <label for="paymentLoanId">Loan ID:</label>
+                <input type="number" id="paymentLoanId" placeholder="e.g., 1" />
+
+                <label for="paymentAmountEth">Payment Amount (ETH):</label>
+                <input type="number" id="paymentAmountEth" step="0.0001" placeholder="e.g., 0.1" />
+
+                <button onclick="makeLoanPayment()">Pay Loan</button>
+                <p id="makeLoanPaymentStatus"></p>
+                <p>Note: Must match or exceed owed amount.</p>
+            </div>
+            <div class="section">
+                <h2 class="section-title">Check Loan</h2>
+                <label for="checkLoanId">Loan ID:</label>
+                <input type="number" id="checkLoanId" placeholder="e.g., 1" />
+
+                <button onclick="checkLoan()">Check Loan</button>
+                <p id="loanInfo"></p>
+            </div>
+        </div>
+
+        <div class="section-row">
+            <div class="section">
+                <h2 class="section-title">Mint Simple NFT</h2>
+                <label for="mintTokenURI">Token URI (e.g., IPFS link):</label>
+                <input type="text" id="mintTokenURI" placeholder="ipfs://..." />
+
+                <button onclick="mintNft()">Mint NFT (Cost: 1000 wei)</button>
+                <p id="mintNftStatus"></p>
+            </div>
+            <div class="section">
+                <h2 class="section-title">Approve NFT to DeFi Contract</h2>
+
+                <label for="approveNftContract">NFT Contract Address:</label>
+                <input type="text" id="approveNftContract" placeholder="e.g., 0x..." value="0xfaa72607FFba7BF45A9678cd6d3E11f619a48B7e" />
+
+                <label for="approveNftTokenId">NFT Token ID:</label>
+                <input type="number" id="approveNftTokenId" placeholder="e.g., 123" />
+
+                <button onclick="approveNft()">Approve NFT</button>
+                <p id="approveNftStatus"></p>
+            </div>
+            <div class="section">
+                <h2 class="section-title">All My NFTs</h2>
+                <button onclick="getAllTokenURIs()">Load My NFTs</button>
+                <div id="allNftsContainer" style="margin-top: 10px;"></div>
+            </div>
+            <div class="section">
+                <h2 class="section-title">Available NFT Loan Requests</h2>
+                <button onclick="getAvailableNfts()">Load Available NFTs</button>
+                <div id="availableNftsContainer" style="margin-top: 10px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="main.js"></script>
+</body>
+
+</html>
